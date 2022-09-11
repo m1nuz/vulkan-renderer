@@ -6,6 +6,7 @@
 #include "Window.hpp"
 
 #include <GLFW/glfw3.h>
+#include <thread>
 
 namespace Application {
 
@@ -41,10 +42,11 @@ auto run(Configuration& conf, [[maybe_unused]] Application& app) -> int {
     Journal::message(Tags::App, "Running {}", running);
 
     while (running) {
+        running = Window::process_window_events(window);
 
         Renderer::draw_frame(*renderer);
 
-        running = Window::process_window_events(window);
+        // std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     Renderer::destroy_renderer(*renderer);

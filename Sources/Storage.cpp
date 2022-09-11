@@ -135,6 +135,14 @@ static auto read_shader(ShaderType st, std::string_view path) -> std::optional<S
     return { si };
 }
 
+static auto read_image([[maybe_unused]] std::string_view path) -> std::optional<ImageInfo> {
+    return std::nullopt;
+}
+
+static auto read_model([[maybe_unused]] std::string_view path) -> std::optional<ModelInfo> {
+    return std::nullopt;
+}
+
 static auto get_shader_type(std::string_view name) -> ShaderType {
     using namespace std::literals;
 
@@ -160,6 +168,48 @@ auto get_shader(Storage& storage, uint64_t resource_id) -> const ShaderProgramIn
                 }
 
                 if (const auto* p = std::get_if<ShaderProgramInfo>(&r.resource); p) {
+                    return p;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+auto get_image(Storage& storage, uint64_t resource_id) -> const ImageInfo* {
+    for (auto& a : storage.assets) {
+        for (auto& r : a.resources) {
+            if (r.id == resource_id) {
+                if (!r.in_memory) {
+                    auto image = read_image(r.path);
+                    if (image) {
+                        r.resource = *image;
+                    }
+                }
+
+                if (const auto* p = std::get_if<ImageInfo>(&r.resource); p) {
+                    return p;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+auto get_model(Storage& storage, uint64_t resource_id) -> const ModelInfo* {
+    for (auto& a : storage.assets) {
+        for (auto& r : a.resources) {
+            if (r.id == resource_id) {
+                if (!r.in_memory) {
+                    auto image = read_model(r.path);
+                    if (image) {
+                        r.resource = *image;
+                    }
+                }
+
+                if (const auto* p = std::get_if<ModelInfo>(&r.resource); p) {
                     return p;
                 }
             }

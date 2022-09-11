@@ -49,6 +49,7 @@ add_executable(${APP_NAME}
     Sources/Window.cpp
     Sources/Renderer.cpp
     Sources/Vulkan.cpp
+    Sources/VulkanDebug.cpp
 )
 
 add_shader(${APP_NAME} Base.vert)
