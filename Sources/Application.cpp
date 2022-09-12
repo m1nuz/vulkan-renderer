@@ -41,8 +41,11 @@ auto run(Configuration& conf, [[maybe_unused]] Application& app) -> int {
 
     Journal::message(Tags::App, "Running {}", running);
 
+    Window::Input input;
+
     while (running) {
         running = Window::process_window_events(window);
+        Window::process_window_input(window, input);
 
         Renderer::draw_frame(*renderer);
 

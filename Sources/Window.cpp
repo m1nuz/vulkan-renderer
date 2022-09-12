@@ -24,6 +24,14 @@ static auto center_window(GLFWwindow* window, GLFWmonitor* monitor) {
     glfwSetWindowPos(window, monitor_x + (mode->width - width) / 2, monitor_y + (mode->height - height) / 2);
 }
 
+static auto is_key_pressed(GLFWwindow* window, int key) noexcept -> bool {
+    return glfwGetKey(window, key) == GLFW_PRESS;
+}
+
+static auto is_mouse_pressed(GLFWwindow* window, int button) noexcept -> bool {
+    return glfwGetMouseButton(window, button) == GLFW_PRESS;
+}
+
 auto destroy_window(GLFWwindow* window) -> void {
     glfwDestroyWindow(window);
 }
@@ -35,6 +43,16 @@ auto process_window_events(GLFWwindow* window) -> bool {
 
     glfwPollEvents();
     return true;
+}
+
+auto process_window_input(GLFWwindow* window, Input& input) -> void {
+    input.forward = is_key_pressed(window, GLFW_KEY_W);
+    input.backward = is_key_pressed(window, GLFW_KEY_S);
+    input.left = is_key_pressed(window, GLFW_KEY_D);
+    input.right = is_key_pressed(window, GLFW_KEY_A);
+    input.space = is_key_pressed(window, GLFW_KEY_SPACE);
+    input.button_right = is_mouse_pressed(window, GLFW_MOUSE_BUTTON_RIGHT);
+    input.button_left = is_mouse_pressed(window, GLFW_MOUSE_BUTTON_LEFT);
 }
 
 [[nodiscard]] auto create_window(const CreateWindowInfo& info) -> GLFWwindow* {

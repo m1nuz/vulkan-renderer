@@ -178,7 +178,6 @@ auto destroy_renderer(Renderer& renderer) -> void {
         // return false;
     }
 
-    // renderer.swapchain.current_frame = (swapchain.current_frame + 1) % swapchain.max_frames_in_flight;
     renderer.swapchain.current_frame++;
     renderer.swapchain.current_frame %= swapchain.max_frames_in_flight;
 

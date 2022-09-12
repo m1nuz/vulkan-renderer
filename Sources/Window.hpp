@@ -12,10 +12,22 @@ struct CreateWindowInfo {
     int32_t height = 0;
 };
 
+struct Input {
+    bool forward = false;
+    bool backward = false;
+    bool left = false;
+    bool right = false;
+    bool button_left = false;
+    bool button_right = false;
+    bool space = false;
+};
+
 [[nodiscard]] auto create_window(const CreateWindowInfo& info) -> GLFWwindow*;
 
 auto destroy_window(GLFWwindow* window) -> void;
 
 [[nodiscard]] auto process_window_events(GLFWwindow* window) -> bool;
+
+auto process_window_input(GLFWwindow* window, Input& input) -> void;
 
 } // namespace Window
