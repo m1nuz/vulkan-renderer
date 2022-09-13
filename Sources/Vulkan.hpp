@@ -64,13 +64,6 @@ struct ShaderInfo {
     std::span<const uint8_t> shader_binary;
 };
 
-struct CreateVulkanInstanceInfo {
-    std::string_view app_name;
-    std::string_view engine_name = "No Engine";
-    bool validate = true;
-    GLFWwindow* window = nullptr;
-};
-
 struct CreateDeviceInfo {
     std::string_view app_name;
     std::string_view engine_name = "No Engine";
@@ -83,6 +76,16 @@ struct CreatePipelineInfo {
     VkDevice device = VK_NULL_HANDLE;
     VkRenderPass render_pass = VK_NULL_HANDLE;
     std::span<ShaderInfo> shaders;
+};
+
+struct CreateSwapChainInfo {
+    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
+    VkDevice device = VK_NULL_HANDLE;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    QueueFamilyIndices indices = {};
+    VkExtent2D extent = { 0, 0 };
+    size_t frame_in_flights = 0;
+    VkSwapchainKHR old_handle = VK_NULL_HANDLE;
 };
 
 struct Device {
@@ -124,26 +127,10 @@ struct Pipeline {
 [[nodiscard]] auto create_device(const CreateDeviceInfo& info) -> Device;
 auto destroy_device(Device& device) -> void;
 
-[[nodiscard]] auto create_vulkan_instance(const CreateVulkanInstanceInfo& info) -> VkInstance;
-auto destroy_instance(VkInstance instance) noexcept -> void;
-
-[[nodiscard]] auto pick_physical_device(const VkInstance instance, VkSurfaceKHR presentation_surface,
-    uint32_t& selected_graphics_queue_family_index, uint32_t& selected_present_queue_family_index) -> std::optional<VkPhysicalDevice>;
-[[nodiscard]] auto create_logical_device(VkPhysicalDevice physical_device, const uint32_t selected_graphics_queue_family_index,
-    const uint32_t selected_present_queue_family_index) -> std::optional<VkDevice>;
-auto destroy_logical_device(VkDevice device) noexcept -> void;
-
-[[nodiscard]] auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface,
-    const QueueFamilyIndices& indices, int32_t width, int32_t height, size_t frame_in_flights) -> std::optional<SwapChain>;
+[[nodiscard]] auto create_swapchain(const CreateSwapChainInfo& info) -> std::optional<SwapChain>;
 auto destroy_swapchain(VkDevice device, SwapChain& swapchain) -> void;
-
-[[nodiscard]] auto create_shader(VkDevice device, std::span<const uint8_t> shader_binary) -> VkShaderModule;
-auto destroy_shader(VkDevice device, VkShaderModule shader_module) noexcept -> void;
 
 [[nodiscard]] auto create_graphics_pipeline(const CreatePipelineInfo& info) -> Pipeline;
 auto destroy_graphics_pipeline(Pipeline& pipeline) -> void;
-
-[[nodiscard]] auto create_render_pass() -> VkRenderPass;
-auto destroy_render_pass(VkRenderPass render_pass) -> void;
 
 } // namespace Vulkan

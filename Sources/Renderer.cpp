@@ -26,8 +26,12 @@ auto create_renderer([[maybe_unused]] Storage::Storage& storage, const CreateRen
     int window_width, window_height;
     glfwGetFramebufferSize(info.window, &window_width, &window_height);
 
-    auto swapchain = Vulkan::create_swapchain(device.physical_device, device.device, device.presentation_surface,
-        { device.graphics_queue.family_index, device.present_queue.family_index }, window_width, window_height, MaxFramesInFlight);
+    auto swapchain = Vulkan::create_swapchain({ .physical_device = device.physical_device,
+        .device = device.device,
+        .surface = device.presentation_surface,
+        .indices = Vulkan::QueueFamilyIndices { device.graphics_queue.family_index, device.present_queue.family_index },
+        .extent = VkExtent2D { static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height) },
+        .frame_in_flights = MaxFramesInFlight });
     if (!swapchain) {
         Journal::critical(Tags::Renderer, "Could not create swap chain!");
         return std::nullopt;

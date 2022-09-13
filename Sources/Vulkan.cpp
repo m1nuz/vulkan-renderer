@@ -9,6 +9,13 @@
 
 namespace Vulkan {
 
+struct CreateVulkanInstanceInfo {
+    std::string_view app_name;
+    std::string_view engine_name = "No Engine";
+    bool validate = true;
+    GLFWwindow* window = nullptr;
+};
+
 namespace Debugging {
 #ifdef LUNAR_VALIDATION
     const std::vector<const char*> validation_layers = { "VK_LAYER_LUNARG_standard_validation" };
@@ -56,111 +63,7 @@ namespace Debugging {
     return extensions;
 }
 
-[[nodiscard]] auto create_device(const CreateDeviceInfo& info) -> Device {
-    Device device;
-
-    auto instance = Vulkan::create_vulkan_instance(
-        { .app_name = info.app_name, .engine_name = info.engine_name, .validate = info.validate, .window = info.window });
-    if (!instance) {
-        Journal::error(Tags::Vulkan, "Couldn't create device! Invalid instance");
-        return {};
-    }
-
-    if (info.validate) {
-        auto [debug_messager, res] = Debugging::create_debug_messager(instance);
-        if (debug_messager) {
-            device.debug_messenger = debug_messager;
-        }
-    }
-
-    VkSurfaceKHR presentation_surface = VK_NULL_HANDLE;
-    if (const auto res = glfwCreateWindowSurface(instance, info.window, nullptr, &presentation_surface); res != VK_SUCCESS) {
-        Journal::critical(Tags::Vulkan, "Could not create presentation surface!");
-        return {};
-    }
-
-    int window_width, window_height;
-    glfwGetFramebufferSize(info.window, &window_width, &window_height);
-
-    QueueFamilyIndices selected_queue_family_indices;
-    auto selected_physical_device = Vulkan::pick_physical_device(instance, presentation_surface,
-        selected_queue_family_indices.graphics_queue_family_index, selected_queue_family_indices.present_queue_family_index);
-    if (!selected_physical_device) {
-        Journal::critical(Tags::Vulkan, "Could not select physical device based on the chosen properties!");
-        return {};
-    }
-
-    auto logical_device = Vulkan::create_logical_device(*selected_physical_device,
-        selected_queue_family_indices.graphics_queue_family_index, selected_queue_family_indices.present_queue_family_index);
-    if (!logical_device) {
-        Journal::critical(Tags::Vulkan, "Couldn't create logical device!");
-        return {};
-    }
-
-    QueueParameters graphics_queue;
-    QueueParameters present_queue;
-    graphics_queue.family_index = selected_queue_family_indices.graphics_queue_family_index;
-    present_queue.family_index = selected_queue_family_indices.present_queue_family_index;
-    vkGetDeviceQueue(*logical_device, graphics_queue.family_index, 0, &graphics_queue.handle);
-    vkGetDeviceQueue(*logical_device, present_queue.family_index, 0, &present_queue.handle);
-
-    VkCommandPoolCreateInfo command_pool_create_info = {};
-    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    command_pool_create_info.queueFamilyIndex = present_queue.family_index;
-
-    VkCommandPool present_queue_command_pool;
-    if (vkCreateCommandPool(*logical_device, &command_pool_create_info, nullptr, &present_queue_command_pool) != VK_SUCCESS) {
-        Journal::error(Tags::Vulkan, "Could not create a command pool!");
-        return {};
-    }
-
-    std::vector<VkCommandBuffer> present_queue_command_buffers;
-    present_queue_command_buffers.resize(info.max_frames_in_flight);
-
-    for (size_t i = 0; i < info.max_frames_in_flight; i++) {
-        VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-        command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        command_buffer_allocate_info.commandPool = present_queue_command_pool;
-        command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        command_buffer_allocate_info.commandBufferCount = 1;
-
-        if (vkAllocateCommandBuffers(*logical_device, &command_buffer_allocate_info, &present_queue_command_buffers[i]) != VK_SUCCESS) {
-            Journal::error(Tags::Vulkan, "Could not record command buffers!");
-            return {};
-        }
-    }
-
-    device.instance = instance;
-    device.physical_device = *selected_physical_device;
-    device.device = *logical_device;
-    device.presentation_surface = presentation_surface;
-    device.graphics_queue = graphics_queue;
-    device.present_queue = present_queue;
-    device.present_queue_command_pool = present_queue_command_pool;
-    device.present_queue_command_buffers = present_queue_command_buffers;
-
-    return device;
-}
-
-auto destroy_device(Device& device) -> void {
-    vkDestroyCommandPool(device.device, device.present_queue_command_pool, nullptr);
-
-    device.graphics_queue = {};
-    device.present_queue = {};
-
-    destroy_logical_device(device.device);
-
-    vkDestroySurfaceKHR(device.instance, device.presentation_surface, nullptr);
-
-    if (device.debug_messenger) {
-        Debugging::destroy_debug_messager(device.instance, device.debug_messenger);
-    }
-
-    destroy_instance(device.instance);
-}
-
-auto create_vulkan_instance(const CreateVulkanInstanceInfo& info) -> VkInstance {
+static auto create_vulkan_instance(const CreateVulkanInstanceInfo& info) -> VkInstance {
     if (info.validate && !check_validation_layer_support(Debugging::validation_layers)) {
         Journal::critical(Tags::Vulkan, "Validation layers not supported!");
         return {};
@@ -216,7 +119,7 @@ auto create_vulkan_instance(const CreateVulkanInstanceInfo& info) -> VkInstance 
     return instance;
 }
 
-auto destroy_instance(VkInstance instance) noexcept -> void {
+static auto destroy_instance(VkInstance instance) noexcept -> void {
     vkDestroyInstance(instance, nullptr);
 }
 
@@ -333,7 +236,7 @@ auto destroy_instance(VkInstance instance) noexcept -> void {
     return true;
 }
 
-[[nodiscard]] auto pick_physical_device(const VkInstance instance, VkSurfaceKHR presentation_surface,
+[[nodiscard]] static auto pick_physical_device(const VkInstance instance, VkSurfaceKHR presentation_surface,
     uint32_t& selected_graphics_queue_family_index, uint32_t& selected_present_queue_family_index) -> std::optional<VkPhysicalDevice> {
 
     auto physical_devices = enumerate_physical_devices(instance);
@@ -359,7 +262,7 @@ auto destroy_instance(VkInstance instance) noexcept -> void {
     return { physical_device };
 }
 
-[[nodiscard]] auto create_logical_device(VkPhysicalDevice physical_device, const uint32_t selected_graphics_queue_family_index,
+[[nodiscard]] static auto create_logical_device(VkPhysicalDevice physical_device, const uint32_t selected_graphics_queue_family_index,
     const uint32_t selected_present_queue_family_index) -> std::optional<VkDevice> {
     std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
     const float queue_priorities[] = { 1.0f };
@@ -402,7 +305,7 @@ auto destroy_instance(VkInstance instance) noexcept -> void {
     return { device };
 }
 
-auto destroy_logical_device(VkDevice device) noexcept -> void {
+static auto destroy_logical_device(VkDevice device) noexcept -> void {
     if (const auto res = vkDeviceWaitIdle(device); res != VK_SUCCESS) {
         Journal::error(Tags::Vulkan, "Couldn't wait device {}", error_string(res));
     }
@@ -591,24 +494,126 @@ static auto create_frame_sync_objects(VkDevice device, size_t frame_in_flights)
     return { image_available_semaphores, render_finished_semaphores, in_flight_fences };
 }
 
-auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfaceKHR surface, const QueueFamilyIndices& indices,
-    int32_t width, int32_t height, size_t frame_in_flights) -> std::optional<SwapChain> {
+[[nodiscard]] auto create_device(const CreateDeviceInfo& info) -> Device {
+    Device device;
 
-    auto swap_chain_support = query_swapchain_support(physical_device, surface);
+    auto instance = create_vulkan_instance(
+        { .app_name = info.app_name, .engine_name = info.engine_name, .validate = info.validate, .window = info.window });
+    if (!instance) {
+        Journal::error(Tags::Vulkan, "Couldn't create device! Invalid instance");
+        return {};
+    }
+
+    if (info.validate) {
+        auto [debug_messager, res] = Debugging::create_debug_messager(instance);
+        if (debug_messager) {
+            device.debug_messenger = debug_messager;
+        }
+    }
+
+    VkSurfaceKHR presentation_surface = VK_NULL_HANDLE;
+    if (const auto res = glfwCreateWindowSurface(instance, info.window, nullptr, &presentation_surface); res != VK_SUCCESS) {
+        Journal::critical(Tags::Vulkan, "Could not create presentation surface!");
+        return {};
+    }
+
+    int window_width, window_height;
+    glfwGetFramebufferSize(info.window, &window_width, &window_height);
+
+    QueueFamilyIndices selected_queue_family_indices;
+    auto selected_physical_device = Vulkan::pick_physical_device(instance, presentation_surface,
+        selected_queue_family_indices.graphics_queue_family_index, selected_queue_family_indices.present_queue_family_index);
+    if (!selected_physical_device) {
+        Journal::critical(Tags::Vulkan, "Could not select physical device based on the chosen properties!");
+        return {};
+    }
+
+    auto logical_device = Vulkan::create_logical_device(*selected_physical_device,
+        selected_queue_family_indices.graphics_queue_family_index, selected_queue_family_indices.present_queue_family_index);
+    if (!logical_device) {
+        Journal::critical(Tags::Vulkan, "Couldn't create logical device!");
+        return {};
+    }
+
+    QueueParameters graphics_queue;
+    QueueParameters present_queue;
+    graphics_queue.family_index = selected_queue_family_indices.graphics_queue_family_index;
+    present_queue.family_index = selected_queue_family_indices.present_queue_family_index;
+    vkGetDeviceQueue(*logical_device, graphics_queue.family_index, 0, &graphics_queue.handle);
+    vkGetDeviceQueue(*logical_device, present_queue.family_index, 0, &present_queue.handle);
+
+    VkCommandPoolCreateInfo command_pool_create_info = {};
+    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    command_pool_create_info.queueFamilyIndex = present_queue.family_index;
+
+    VkCommandPool present_queue_command_pool;
+    if (vkCreateCommandPool(*logical_device, &command_pool_create_info, nullptr, &present_queue_command_pool) != VK_SUCCESS) {
+        Journal::error(Tags::Vulkan, "Could not create a command pool!");
+        return {};
+    }
+
+    std::vector<VkCommandBuffer> present_queue_command_buffers;
+    present_queue_command_buffers.resize(info.max_frames_in_flight);
+
+    for (size_t i = 0; i < info.max_frames_in_flight; i++) {
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+        command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        command_buffer_allocate_info.commandPool = present_queue_command_pool;
+        command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        command_buffer_allocate_info.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(*logical_device, &command_buffer_allocate_info, &present_queue_command_buffers[i]) != VK_SUCCESS) {
+            Journal::error(Tags::Vulkan, "Could not record command buffers!");
+            return {};
+        }
+    }
+
+    device.instance = instance;
+    device.physical_device = *selected_physical_device;
+    device.device = *logical_device;
+    device.presentation_surface = presentation_surface;
+    device.graphics_queue = graphics_queue;
+    device.present_queue = present_queue;
+    device.present_queue_command_pool = present_queue_command_pool;
+    device.present_queue_command_buffers = present_queue_command_buffers;
+
+    return device;
+}
+
+auto destroy_device(Device& device) -> void {
+    vkDestroyCommandPool(device.device, device.present_queue_command_pool, nullptr);
+
+    device.graphics_queue = {};
+    device.present_queue = {};
+
+    destroy_logical_device(device.device);
+
+    vkDestroySurfaceKHR(device.instance, device.presentation_surface, nullptr);
+
+    if (device.debug_messenger) {
+        Debugging::destroy_debug_messager(device.instance, device.debug_messenger);
+    }
+
+    destroy_instance(device.instance);
+}
+
+auto create_swapchain(const CreateSwapChainInfo& info) -> std::optional<SwapChain> {
+    auto swap_chain_support = query_swapchain_support(info.physical_device, info.surface);
     if (!swap_chain_support) {
         return {};
     }
 
     const auto desired_number_of_images = get_swap_chain_num_images(swap_chain_support->capabilities);
     const auto desired_format = choose_swap_surface_format(swap_chain_support->formats);
-    const auto desired_extent = choose_swap_extent(swap_chain_support->capabilities, width, height);
+    const auto desired_extent = choose_swap_extent(swap_chain_support->capabilities, info.extent.width, info.extent.height);
     const auto desired_present_mode = choose_swap_present_mode(swap_chain_support->present_modes);
     const auto desired_transform = get_swap_chain_transform(swap_chain_support->capabilities);
     const auto desired_usage = get_swap_chain_usage_flags(swap_chain_support->capabilities);
 
     VkSwapchainCreateInfoKHR swap_chain_create_info = {};
     swap_chain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swap_chain_create_info.surface = surface;
+    swap_chain_create_info.surface = info.surface;
     swap_chain_create_info.minImageCount = desired_number_of_images;
     swap_chain_create_info.imageFormat = desired_format.format;
     swap_chain_create_info.imageColorSpace = desired_format.colorSpace;
@@ -621,8 +626,8 @@ auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfa
     swap_chain_create_info.clipped = VK_TRUE;
     swap_chain_create_info.oldSwapchain = VK_NULL_HANDLE;
 
-    if (indices.graphics_queue_family_index != indices.present_queue_family_index) {
-        uint32_t queueFamilyIndices[] = { indices.graphics_queue_family_index, indices.present_queue_family_index };
+    if (info.indices.graphics_queue_family_index != info.indices.present_queue_family_index) {
+        uint32_t queueFamilyIndices[] = { info.indices.graphics_queue_family_index, info.indices.present_queue_family_index };
         swap_chain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swap_chain_create_info.queueFamilyIndexCount = 2;
         swap_chain_create_info.pQueueFamilyIndices = queueFamilyIndices;
@@ -631,19 +636,19 @@ auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfa
     }
 
     VkSwapchainKHR swap_chain = VK_NULL_HANDLE;
-    if (vkCreateSwapchainKHR(device, &swap_chain_create_info, nullptr, &swap_chain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(info.device, &swap_chain_create_info, nullptr, &swap_chain) != VK_SUCCESS) {
         Journal::error(Tags::Vulkan, "Could not create swap chain!");
         return {};
     }
 
     uint32_t image_count = 0;
-    vkGetSwapchainImagesKHR(device, swap_chain, &image_count, nullptr);
+    vkGetSwapchainImagesKHR(info.device, swap_chain, &image_count, nullptr);
 
     std::vector<VkImage> swap_chain_images;
     swap_chain_images.resize(image_count);
-    vkGetSwapchainImagesKHR(device, swap_chain, &image_count, &swap_chain_images[0]);
+    vkGetSwapchainImagesKHR(info.device, swap_chain, &image_count, &swap_chain_images[0]);
 
-    auto swapchain_image_views = create_image_views(device, swap_chain_images, desired_format.format);
+    auto swapchain_image_views = create_image_views(info.device, swap_chain_images, desired_format.format);
     if (swap_chain_images.empty()) {
         Journal::error(Tags::Vulkan, "Could not create swap chain image views!");
         return {};
@@ -687,15 +692,16 @@ auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfa
     render_pass_create_info.pDependencies = &dependency;
 
     VkRenderPass render_pass = VK_NULL_HANDLE;
-    if (vkCreateRenderPass(device, &render_pass_create_info, nullptr, &render_pass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(info.device, &render_pass_create_info, nullptr, &render_pass) != VK_SUCCESS) {
         Journal::error(Tags::Vulkan, "Could not create render pass!");
         return {};
     }
 
-    auto framebuffers = create_framebuffers(device, swapchain_image_views, render_pass,
-        VkExtent2D { .width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height) });
+    auto framebuffers = create_framebuffers(info.device, swapchain_image_views, render_pass,
+        VkExtent2D { .width = static_cast<uint32_t>(info.extent.width), .height = static_cast<uint32_t>(info.extent.height) });
 
-    auto [image_available_semaphores, render_finished_semaphores, in_flight_fences] = create_frame_sync_objects(device, frame_in_flights);
+    auto [image_available_semaphores, render_finished_semaphores, in_flight_fences]
+        = create_frame_sync_objects(info.device, info.frame_in_flights);
 
     SwapChain swapchain;
     swapchain.handle = swap_chain;
@@ -708,7 +714,7 @@ auto create_swapchain(VkPhysicalDevice physical_device, VkDevice device, VkSurfa
     swapchain.image_available_semaphores = image_available_semaphores;
     swapchain.render_finished_semaphores = render_finished_semaphores;
     swapchain.in_flight_fences = in_flight_fences;
-    swapchain.max_frames_in_flight = frame_in_flights;
+    swapchain.max_frames_in_flight = info.frame_in_flights;
 
     return { swapchain };
 }
@@ -737,7 +743,7 @@ auto destroy_swapchain(VkDevice device, SwapChain& swapchain) -> void {
     vkDestroySwapchainKHR(device, swapchain.handle, nullptr);
 }
 
-auto create_shader(VkDevice device, std::span<const uint8_t> shader_binary) -> VkShaderModule {
+[[nodiscard]] static auto create_shader(VkDevice device, std::span<const uint8_t> shader_binary) -> VkShaderModule {
     VkShaderModuleCreateInfo shader_module_create_info = {};
     shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shader_module_create_info.codeSize = std::size(shader_binary);
@@ -752,7 +758,7 @@ auto create_shader(VkDevice device, std::span<const uint8_t> shader_binary) -> V
     return shader_module;
 }
 
-auto destroy_shader(VkDevice device, VkShaderModule shader_module) noexcept -> void {
+static auto destroy_shader(VkDevice device, VkShaderModule shader_module) noexcept -> void {
     vkDestroyShaderModule(device, shader_module, nullptr);
 }
 

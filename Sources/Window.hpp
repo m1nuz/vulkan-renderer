@@ -28,6 +28,6 @@ auto destroy_window(GLFWwindow* window) -> void;
 
 [[nodiscard]] auto process_window_events(GLFWwindow* window) -> bool;
 
-auto process_window_input(GLFWwindow* window, Input& input) -> void;
+[[nodiscard]] auto process_window_input(GLFWwindow* window, Input& input) -> bool;
 
 } // namespace Window

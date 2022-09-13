@@ -37,7 +37,7 @@ struct CreateRendererInfo {
     GLFWwindow* window = nullptr;
 };
 
-auto create_renderer(Storage::Storage& storage, const CreateRendererInfo& info) -> std::optional<Renderer>;
+[[nodiscard]] auto create_renderer(Storage::Storage& storage, const CreateRendererInfo& info) -> std::optional<Renderer>;
 
 auto destroy_renderer(Renderer& renderer) -> void;
 

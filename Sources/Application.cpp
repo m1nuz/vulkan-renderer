@@ -45,7 +45,7 @@ auto run(Configuration& conf, [[maybe_unused]] Application& app) -> int {
 
     while (running) {
         running = Window::process_window_events(window);
-        Window::process_window_input(window, input);
+        running &= Window::process_window_input(window, input);
 
         Renderer::draw_frame(*renderer);
 

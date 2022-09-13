@@ -45,7 +45,11 @@ auto process_window_events(GLFWwindow* window) -> bool {
     return true;
 }
 
-auto process_window_input(GLFWwindow* window, Input& input) -> void {
+auto process_window_input(GLFWwindow* window, Input& input) -> bool {
+    if (!window) {
+        return false;
+    }
+
     input.forward = is_key_pressed(window, GLFW_KEY_W);
     input.backward = is_key_pressed(window, GLFW_KEY_S);
     input.left = is_key_pressed(window, GLFW_KEY_D);
@@ -53,6 +57,8 @@ auto process_window_input(GLFWwindow* window, Input& input) -> void {
     input.space = is_key_pressed(window, GLFW_KEY_SPACE);
     input.button_right = is_mouse_pressed(window, GLFW_MOUSE_BUTTON_RIGHT);
     input.button_left = is_mouse_pressed(window, GLFW_MOUSE_BUTTON_LEFT);
+
+    return true;
 }
 
 [[nodiscard]] auto create_window(const CreateWindowInfo& info) -> GLFWwindow* {
